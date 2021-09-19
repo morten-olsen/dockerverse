@@ -1,0 +1,24 @@
+{
+  "name": "dockerverse",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "bin": {
+    "dockerverse": "bin/cli.js"
+  },
+  "scripts": {
+    "dev": "ts-node src/cli",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.2.7",
+    "nodemon": "^2.0.12",
+    "ts-node": "^10.2.1",
+    "typescript": "^4.4.3"
+  },
+  "dependencies": {
+    "commander": "^8.2.0",
+    "dockerode": "^3.3.1",
+    "nanoid": "^3.1.25"
+  }
+}
