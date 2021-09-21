@@ -1,4 +1,5 @@
 /node_modules
-/dist
-/.secrets
 /*.log
+/packages/*/node_modules
+/packages/*/dist
+/packages/*/*.log
