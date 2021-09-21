@@ -25,6 +25,14 @@ jobs:
     # set up git since we will later push to the repo
     - run: git config --global user.name "GitHub CD bot"
     - run: git config --global user.email "github-cd-bot@example.com"
+    - name: Authenticate with Registry
+      run: |
+        yarn logout
+        echo "registry=http://registry.npmjs.org/" >> .npmrc
+        echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> .npmrc
+        npm whoami
+      env:
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     # build the project
     - run: yarn run build
     # publish to NPM -> there is one caveat, continue reading for the fix
