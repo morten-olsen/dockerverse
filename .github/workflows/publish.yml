@@ -25,12 +25,10 @@ jobs:
     # set up git since we will later push to the repo
     - run: git config --global user.name "GitHub CD bot"
     - run: git config --global user.email "github-cd-bot@example.com"
-    # upgrade npm version in package.json to the tag used in the release.
-    - run: yarn lerna version --no-push -y ${{ github.event.release.tag_name }}
     # build the project
     - run: yarn run build
     # publish to NPM -> there is one caveat, continue reading for the fix
-    - run: yarn lerna publish -y --pre-dist-tag  ${{ github.event.release.target_commitish }}
+    - run: yarn lerna publish -y --pre-dist-tag  ${{ github.event.release.target_commitish }} ${{ github.event.release.tag_name }}
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     # push the version changes to GitHub
