@@ -1,6 +1,6 @@
 {
   "name": "dockerverse",
-  "version": "0.0.5",
+  "version": "0.0.18",
   "main": "dist/index.js",
   "license": "MIT",
   "bin": {
