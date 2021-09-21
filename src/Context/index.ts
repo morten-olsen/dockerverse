@@ -1,4 +1,5 @@
-import Project, { Hosts } from '../types/Project';
+import IProject from '../types/IProject';
+import IHostContext from '../types/IHostContext';
 import ProjectContext from './ProjectContext';
 import Host, { Options as HostOptions } from '../Host';
 import ExecutionContext from './ExecutionContext';
@@ -9,23 +10,23 @@ interface Options {
     [name: string]: HostOptions;
   };
   projects: {
-    [name: string]: Project;
+    [name: string]: IProject;
   };
 }
 
 class Context {
   #options: Options;
   #magic: symbol;
-  #hosts: Hosts;
+  #hosts: IHostContext;
   #projectContexts: {[name: string]: ProjectContext}
 
   constructor(options: Options) {
     this.#options = options;
     this.#magic = Symbol('Docker magic');
-    this.#hosts = Object.entries(options.hosts).reduce((output, [name, options]) => ({
+    this.#hosts = Object.entries(options.hosts).reduce<IHostContext>((output, [name, options]) => ({
       ...output,
       [name]: new Host(options, this.#magic),
-    }), {} as Hosts);
+    }), {});
     this.#projectContexts = Object.entries(options.projects).reduce((output, [name, project]) => {
       const projectContext = new ProjectContext({
         name,

@@ -1,11 +1,12 @@
-import Project, { Hosts, SetupHosts } from '../types/Project';
+import IProject, { IHosts } from '../types/IProject';
+import IHostContext from '../types/IHostContext';
 import ExecutionContext from './ExecutionContext';
-import ContainerContext from './Container';
+import ContainerContext from './ContainerContext';
 
 interface Options {
   name: string;
-  project: Project;
-  hosts: Hosts,
+  project: IProject;
+  hosts: IHostContext,
   magic: symbol,
   getApi: (projectName: string, provides: string) => {[name: string]: any};
 }
@@ -48,14 +49,15 @@ class ProjectContext {
 
   public setup = async () => {
     const { name, project, hosts } = this.#options;
-    const setupHosts = Object.entries(hosts).reduce((output, [hostName, current]) => ({
+    const setupHosts = Object.entries(hosts).reduce<IHosts>((output, [hostName, current]) => ({
       ...output,
       [hostName]: {
+        storageTypes: current.storageTypes,
         createNetwork: (networkName: string) => current.createNetwork(name, networkName),
         createVolume: (volumeName: string, type: string) => current.createVolume(name, volumeName, type),
       }
-    }), {} as SetupHosts)
-    await project.setup(name, setupHosts);
+    }), {});
+    await project.setup({ name, hosts: setupHosts });
     this.#containerContexts = await this.#getContainerContexts();
   }
 

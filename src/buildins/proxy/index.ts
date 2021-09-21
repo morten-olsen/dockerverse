@@ -1,13 +1,15 @@
-import Project, { SetupHosts, Container, ProjectContainerArgs } from '../../types/Project';
+import Project from '../../Project';
+import { SetupArgs, ProjectContainerArgs } from '../../types/IProject';
+import IContainer from '../../types/IContainer';
 
-class Proxy implements Project {
+class Proxy extends Project {
   type = 'proxy';
   version = '1.0.0';
   provides = {
     'x:traefik:1.0.0': (project: string) => ({
-      addToLoadbalancer: async (name: string, container: Container, domain: string, port: number) => {
+      addToLoadbalancer: async (name: string, container: IContainer, domain: string, port: number) => {
         const traefikParam = `${project}-${name}`;
-        const loadbalancedContainer: Container = {
+        const loadbalancedContainer: IContainer = {
           ...container,
           networks: [
             ...container.networks,
@@ -31,7 +33,7 @@ class Proxy implements Project {
   #storage!: symbol;
   #host!: string;
 
-  setup = async (name: string, hosts: SetupHosts, env?: any) => {
+  setup = async ({ name, hosts, env }: SetupArgs) => {
     this.#host = Object.keys(hosts)[0]; // For now we just setup the first docker host
     this.#name = name;
     this.#network = await hosts[this.#host].createNetwork('default');
@@ -41,28 +43,35 @@ class Proxy implements Project {
 
   createContainers = async ({ getApi }: ProjectContainerArgs) => {
     const api = getApi('x:traefik:*')[this.#name];
+    const [secrets] = Object.values(getApi('dockerverse:secrets:*'));
 
+    const someSecret = await secrets.getSecret('some-secret-name1');
+
+    const proxyContainer: IContainer = {
+      image: 'traefik:2.5',
+      host: this.#host,
+      networks: [
+        this.#network,
+      ],
+      cmd: [
+        '--providers.docker=true',
+        '--providers.docker.exposedByDefault=false',
+        '--api=true',
+        '--api.insecure=true',
+      ],
+      environment: {
+        SOME_SECRET: someSecret,
+      },
+      dockerAccess: true,
+      volumes: [
+        [this.#storage, '/acme'] as [symbol, string]
+      ],
+      ports: [
+        ['80', '80'] as [string, string],
+      ]
+    }
     return {
-      proxy: await api.addToLoadbalancer('proxy', {
-        image: 'traefik:2.5',
-        host: this.#host,
-        networks: [
-          this.#network,
-        ],
-        cmd: [
-          '--providers.docker=true',
-          '--providers.docker.exposedByDefault=false',
-          '--api=true',
-          '--api.insecure=true',
-        ],
-        dockerAccess: true,
-        volumes: [
-          [this.#storage, '/acme'] as [symbol, string]
-        ],
-        ports: [
-          ['80', '80'] as [string, string],
-        ]
-      }, 'proxy', 8080),
+      proxy: await api.addToLoadbalancer('proxy', proxyContainer, 'proxy', 8080),
     };
   }
 }

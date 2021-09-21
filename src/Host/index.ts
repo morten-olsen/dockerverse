@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import path from 'path';
 
 interface Options {
-  docker: Docker;
+  docker?: Docker.DockerOptions;
   storage: {
     types: {[name: string]: string};
     shared: {[name: string]: string};
@@ -13,20 +13,25 @@ interface Options {
 class Host {
   #options: Options;
   #magic: Symbol;
+  #docker: Docker;
   #networks: {[id: symbol]: string} = {};
   #volumes: {[id: symbol]: string} = {};
 
   constructor(options: Options, magic: Symbol) {
     this.#options = options;
     this.#magic = magic;
+    this.#docker = new Docker(options.docker);
+  }
+
+  get storageTypes() {
+    return Object.keys(this.#options.storage);
   }
 
   getDocker = (magic: Symbol) => {
-    const { docker } = this.#options;
     if (magic !== this.#magic) {
       throw new Error('Invalid docker magic');
     }
-    return docker;
+    return this.#docker;
   }
 
   getVolume = (id: symbol) => {
@@ -38,7 +43,6 @@ class Host {
   }
 
   ensureVolume = async (id: symbol) => {
-    const { docker } = this.#options;
     const source = this.#volumes[id];
     if (!source) {
       throw new Error('Volume does not exists');
@@ -56,7 +60,7 @@ class Host {
         }],
       },
     }
-    await docker.run('busybox', ['mkdir', '-p', target], process.stdout, options);
+    await this.#docker.run('busybox', ['mkdir', '-p', target], process.stdout, options);
   }
 
   createVolume = async (project: string, name: string, type: string) => {
@@ -73,12 +77,11 @@ class Host {
   }
 
   createNetwork = async (project: string, name: string) => {
-    const { docker } = this.#options;
-    const networks = await docker.listNetworks();
+    const networks = await this.#docker.listNetworks();
     const networkSymbol = Symbol(`Network ${project} ${name}`)
     let current = networks.find(n => n.Labels?.project === project && n.Labels?.name === name)?.Id;
     if (!current) {
-      const network = await docker.createNetwork({
+      const network = await this.#docker.createNetwork({
         Name: nanoid(),
         Labels: {
           project,

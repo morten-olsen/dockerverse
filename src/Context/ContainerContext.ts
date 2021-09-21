@@ -1,4 +1,5 @@
-import { Container, Hosts } from '../types/Project';
+import IContainer from '../types/IContainer';
+import IHostContext from '../types/IHostContext';
 import ExecutionContext from './ExecutionContext';
 import { nanoid } from 'nanoid';
 import Dockerode from 'dockerode';
@@ -6,8 +7,8 @@ import Dockerode from 'dockerode';
 interface Options {
   project: string;
   name: string;
-  container: Container;
-  hosts: Hosts;
+  container: IContainer;
+  hosts: IHostContext;
   getApi: (provides: string) => {[name: string]: any};
   magic: Symbol;
 }
@@ -132,10 +133,10 @@ class ContainerContext {
       Target: '/var/run/docker.sock',
       Type: 'bind',
     }];
-    const environment = await Promise.all(Object.entries(container.environement || {}).map(async ([name, value]) => {
+    const environment = await Promise.all(Object.entries(container.environment || {}).map(async ([name, value]) => {
       if (typeof value !== 'string') {
         const secretsApi = getApi('x:secrets:1.0.0');
-        const text = await secretsApi[value.project].getSecret(value.id);
+        const text = await secretsApi[value.project].getSecretValue(value.id);
         return `${name}=${text}`
       } else {
         return `${name}=${value}`

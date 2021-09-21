@@ -1,12 +1,11 @@
-import proxy from './src/buildins/proxy/project';
+import proxy from './src/buildins/proxy';
 import secrets from './src/buildins/secrets';
-import Dockerode from 'dockerode';
 import path from 'path';
+import { Options } from './src/index';
 
-const config = {
+const config: Options = {
   hosts: {
     main: {
-      docker: new Dockerode(),
       storage: {
         types: {
           fast: path.join(process.cwd(), 'data', 'fast'),
@@ -17,7 +16,7 @@ const config = {
     },
   },
   projects: {
-    secrets,
+    secrets: secrets(),
     proxy,
   },
 };
