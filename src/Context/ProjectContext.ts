@@ -1,4 +1,4 @@
-import Project, { Api, ApiSearch, Hosts, SetupHosts } from '../types/Project';
+import Project, { Hosts, SetupHosts } from '../types/Project';
 import ExecutionContext from './ExecutionContext';
 import ContainerContext from './Container';
 
@@ -7,7 +7,7 @@ interface Options {
   project: Project;
   hosts: Hosts,
   magic: symbol,
-  getApi: (projectName: string, search: ApiSearch) => {[name: string]: Api};
+  getApi: (projectName: string, provides: string) => {[name: string]: any};
 }
 
 class ProjectContext {
@@ -41,7 +41,7 @@ class ProjectContext {
         magic,
         hosts,
         project: name,
-        getApi: (search: ApiSearch) => getApi(name, search),
+        getApi: (provides) => getApi(name, provides),
       }),
     }), {} as {[name: string]: ContainerContext});
   }
@@ -66,16 +66,16 @@ class ProjectContext {
     }
   }
 
-  public stop = async () => {
+  public destroy = async (executionContext: ExecutionContext) => {
     const containers = this.containerContexts;
     for (let [, container] of Object.entries(containers).reverse()) {
-      await container.stop()
+      await container.destroy(executionContext)
     }
   }
 
   public apply = async (executionContext: ExecutionContext) => {
     const containers = this.containerContexts;
-    for (let [name, container] of Object.entries(containers)) {
+    for (let [, container] of Object.entries(containers)) {
       await container.apply(executionContext);
     }
   }

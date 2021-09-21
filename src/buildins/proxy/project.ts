@@ -4,27 +4,26 @@ class Proxy implements Project {
   type = 'proxy';
   version = '1.0.0';
   provides = {
-    'proxy': '0.0.1',
+    'x:traefik:1.0.0': (project: string) => ({
+      addToLoadbalancer: async (name: string, container: Container, domain: string, port: number) => {
+        const traefikParam = `${project}-${name}`;
+        const loadbalancedContainer: Container = {
+          ...container,
+          networks: [
+            ...container.networks,
+            this.#network,
+          ],
+          labels: {
+            ...container.labels || {},
+            'traefik.enable': 'true',
+            [`traefik.http.routers.${traefikParam}.rule`]: `Host(\`${domain}.${this.#domain}\`)`,
+            [`traefik.http.services.${traefikParam}.loadbalancer.server.port`]: port.toString(),
+          },
+        };
+        return loadbalancedContainer;
+      },
+    }),
   };
-  getApi = (project: string) => ({
-    addToLoadbalancer: async (name: string, container: Container, domain: string, port: number) => {
-      const traefikParam = `${project}-${name}`;
-      const loadbalancedContainer: Container = {
-        ...container,
-        networks: [
-          ...container.networks,
-          this.#network,
-        ],
-        labels: {
-          ...container.labels || {},
-          'traefik.enable': 'true',
-          [`traefik.http.routers.${traefikParam}.rule`]: `Host(\`${domain}.${this.#domain}\`)`,
-          [`traefik.http.services.${traefikParam}.loadbalancer.server.port`]: port.toString(),
-        },
-      };
-      return loadbalancedContainer;
-    }
-  });
 
   #name!: string;
   #network!: symbol;
@@ -41,7 +40,7 @@ class Proxy implements Project {
   }
 
   createContainers = async ({ getApi }: ProjectContainerArgs) => {
-    const api = getApi({ name: this.#name })[this.#name];
+    const api = getApi('x:traefik:*')[this.#name];
 
     return {
       proxy: await api.addToLoadbalancer('proxy', {

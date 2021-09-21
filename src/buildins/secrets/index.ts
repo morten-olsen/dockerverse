@@ -5,7 +5,10 @@ class Secrets implements Project {
   type = 'secrets';
   version = '1.0.0';
   provides = {
-    secrets: '1.0.0',
+    'x:secrets:1.0.0': (project: string) => ({
+      getRandomSecret: this.#getRandomSecret.bind(null, project),
+      getSecret: this.#getSecret,
+    }),
   };
 
   #secrets: {[id: symbol]: string} = {};
@@ -27,13 +30,6 @@ class Secrets implements Project {
     return {
       project: this.#name,
       id: secretSymbol,
-    };
-  }
-
-  public getApi = (project: string) => {
-    return {
-      getRandomSecret: this.#getRandomSecret.bind(null, project),
-      getSecret: this.#getSecret,
     };
   }
 }

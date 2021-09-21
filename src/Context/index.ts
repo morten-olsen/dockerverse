@@ -1,7 +1,8 @@
-import Project, { ApiSearch, Hosts, Api } from '../types/Project';
+import Project, { Hosts } from '../types/Project';
 import ProjectContext from './ProjectContext';
 import Host, { Options as HostOptions } from '../Host';
 import ExecutionContext from './ExecutionContext';
+import semver from 'semver';
 
 interface Options {
   hosts: {
@@ -40,30 +41,22 @@ class Context {
     }, {} as {[name: string]: ProjectContext})
   }
 
-  #getApi = (projectName: string, search: ApiSearch) => {
+  #getApi = (projectName: string, provides: string) => {
     const { projects } = this.#options;
-    const results = Object.entries(projects).filter(([name, project]) => {
-      if (search.name && search.name !== name) {
-        return false;
-      }
-      if (search.type && project.type !== search.type) {
-        return false;
-      }
-      if (search.provides) {
-        const provides = project.provides || {};
-        for (var [depName, depVersion] of Object.entries(search.provides)) {
-          if (!provides[depName]) {
-            return false;
+    const [reqAuthority, reqName, reqVersion] = provides.split(':');
+    const apis = Object.entries(projects).reduce((output, [n, project]) => {
+      for (let [provides, createApi] of Object.entries(project.provides || {})) {
+        const [authority, name, version] = provides.split(':');
+        if (reqAuthority === authority && reqName === name && semver.satisfies(version, reqVersion)) {
+          return {
+            ...output,
+            [n]: createApi(projectName),
           }
-          // TODO: version check
         }
       }
-      return true;
-    })
-    return results.reduce((output, [name, project]) => ({
-      ...output,
-      [name]: project.getApi(projectName),
-    }), {} as {[name: string]: Api});
+      return output;
+    }, {} as {[name: string]: any})
+    return apis;
   }
 
   public setup = async () => {
@@ -77,6 +70,12 @@ class Context {
   public apply = async (executionContext: ExecutionContext) => {
     for (let project of Object.values(this.#projectContexts)) {
       await project.apply(executionContext);
+    }
+  }
+
+  public destroy = async (executionContext: ExecutionContext) => {
+    for (let project of Object.values(this.#projectContexts)) {
+      await project.destroy(executionContext);
     }
   }
 }

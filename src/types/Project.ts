@@ -23,10 +23,6 @@ interface Container {
   configs?: [string, string][];
 }
 
-type Api = {
-  [name: string]: (...args: any[]) => Promise<any>;
-};
-
 type Hosts = {
   [name: string]: Host;
 }
@@ -38,27 +34,20 @@ interface SetupHosts {
   }
 }
 
-interface ApiSearch {
-  name?: string;
-  type?: string;
-  provides?: {[name: string]: string};
-}
-
 interface ProjectContainerArgs {
-  getApi: (search: ApiSearch) => {[name: string]: Api};
+  getApi: <TApi = any>(provides: string) => {[name: string]: TApi};
 }
 
 interface Project {
   type: string;
   version: string;
-  provides?: {[name: string]: string};
+  provides?: {[name: string]: (projectName: string) => any};
   setup: (name: string, hosts: SetupHosts, env?: any) => Promise<void>;
   createContainers?: (args: ProjectContainerArgs) => Promise<{
     [name: string]: Container;
   }>
-  getApi: (project: string) => Api;
 }
 
-export type { Container, Api, SetupHosts, Hosts, ProjectContainerArgs, ApiSearch, Secret };
+export type { Container, SetupHosts, Hosts, ProjectContainerArgs, Secret };
 
 export default Project;

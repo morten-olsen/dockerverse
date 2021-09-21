@@ -1,4 +1,4 @@
-import { Container, Hosts, Api, ApiSearch } from '../types/Project';
+import { Container, Hosts } from '../types/Project';
 import ExecutionContext from './ExecutionContext';
 import { nanoid } from 'nanoid';
 import Dockerode from 'dockerode';
@@ -8,7 +8,7 @@ interface Options {
   name: string;
   container: Container;
   hosts: Hosts;
-  getApi: (search: ApiSearch) => {[name: string]: Api};
+  getApi: (provides: string) => {[name: string]: any};
   magic: Symbol;
 }
 
@@ -53,8 +53,11 @@ class ContainerContext {
 
   };
 
-  public stop = async () => {
-    const { name, project } = this.#options;
+  public destroy = async (executionContext: ExecutionContext) => {
+    const { name, project, container } = this.#options;
+    if (executionContext.hosts && !executionContext.hosts.includes(container.host)) {
+      return;
+    }
     const containers = await this.#docker.listContainers({
       all: true,
     });
@@ -131,7 +134,7 @@ class ContainerContext {
     }];
     const environment = await Promise.all(Object.entries(container.environement || {}).map(async ([name, value]) => {
       if (typeof value !== 'string') {
-        const secretsApi = getApi({ provides: { secrets: '1.0.0'} });
+        const secretsApi = getApi('x:secrets:1.0.0');
         const text = await secretsApi[value.project].getSecret(value.id);
         return `${name}=${text}`
       } else {
@@ -170,7 +173,7 @@ class ContainerContext {
         PortBindings: ports,
       }
     };
-    await this.stop();
+    await this.destroy(executionContext);
     const dockerContainer = await this.#docker.createContainer(dockerContainerInfo);
     await dockerContainer.start();
   }
