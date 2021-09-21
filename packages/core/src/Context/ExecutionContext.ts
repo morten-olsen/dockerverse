@@ -1,3 +1,5 @@
+import chalk from 'chalk';
+
 interface Options {
   hosts?: string[];
   build?: boolean;
@@ -5,9 +7,11 @@ interface Options {
 
 class ExecutionContext {
   #options: Options;
+  #namespaces: string[];
 
-  constructor(options: Options) {
+  constructor(options: Options, namespaces: string[] = []) {
     this.#options = options;
+    this.#namespaces = namespaces;
   }
 
   get hosts() {
@@ -16,6 +20,15 @@ class ExecutionContext {
 
   get build() {
     return !!this.#options.build;
+  }
+
+  public log = (message: string) => {
+    const namespace = this.#namespaces.join('::');
+    console.log(`${chalk.green(namespace)}: ${message}`);
+  }
+
+  public subContext = (namespace: string) => {
+    return new ExecutionContext(this.#options, [...this.#namespaces, namespace])
   }
 }
 

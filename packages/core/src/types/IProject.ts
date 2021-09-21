@@ -1,4 +1,6 @@
 import IContainer from './IContainer';
+import { Command } from 'commander';
+import ProjectContext from '../Context/ProjectContext';
 
 interface IHosts {
   [name: string]: {
@@ -26,6 +28,7 @@ interface IProject {
   createContainers?: (args: ProjectContainerArgs) => Promise<{
     [name: string]: IContainer;
   }>
+  createCli?: (command: Command, context: ProjectContext) => void;
 }
 
 export type { IHosts, SetupArgs, ProjectContainerArgs };

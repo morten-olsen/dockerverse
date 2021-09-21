@@ -8,7 +8,9 @@
   "license": "MIT",
   "scripts": {
     "postinstall": "lerna bootstrap",
-    "build": "tsc -b"
+    "prepublish": "tsc -b",
+    "build": "tsc -b",
+    "dev": "lerna run --stream --scope=dockerverse dev --"
   },
   "workspaces": [
     "packages/*"

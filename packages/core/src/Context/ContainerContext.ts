@@ -3,6 +3,7 @@ import IHostContext from '../types/IHostContext';
 import ExecutionContext from './ExecutionContext';
 import { nanoid } from 'nanoid';
 import Dockerode from 'dockerode';
+import { hasImage, pullImage } from '../helpers/docker';
 
 interface Options {
   project: string;
@@ -10,7 +11,6 @@ interface Options {
   container: IContainer;
   hosts: IHostContext;
   getApi: (provides: string) => {[name: string]: any};
-  magic: Symbol;
 }
 
 class ContainerContext {
@@ -27,8 +27,7 @@ class ContainerContext {
   }
 
   get #docker() {
-    const { magic } = this.#options;
-    return this.#host.getDocker(magic);
+    return this.#host.docker;
   }
 
   #getImageName = async () => {
@@ -59,6 +58,7 @@ class ContainerContext {
     if (executionContext.hosts && !executionContext.hosts.includes(container.host)) {
       return;
     }
+    const context = executionContext.subContext('destroy');
     const containers = await this.#docker.listContainers({
       all: true,
     });
@@ -66,6 +66,7 @@ class ContainerContext {
     for (let { Id } of list) {
       const current = this.#docker.getContainer(Id);
       const info = await current.inspect();
+      context.log(`destorying ${info.Name}`);
       if (info.State.Running) {
         await current.stop();
       }
@@ -73,12 +74,27 @@ class ContainerContext {
     }
   }
 
-  public build = async () => {
+  public pull = async (executionContext: ExecutionContext) => {
+    const context = executionContext.subContext('create');
+    const { container } = this.#options;
+    if (!container.image) {
+      return;
+    }
+    if (!await hasImage(this.#docker, container.image)) {
+      context.log('starting');
+      await pullImage(this.#docker, container.image);
+      context.log('done');
+    }
+  }
+
+  public build = async (executionContext: ExecutionContext) => {
+    const context = executionContext.subContext('build');
     const { name, project, container } = this.#options;
     const tag = await this.#getImageName() || `${project}_${name}_${nanoid().toLowerCase()}`;
     if (!container.context) {
       return;
     }
+    context.log('starting');
     const stream = await this.#docker.buildImage(
       {
         context: container.context,
@@ -96,29 +112,94 @@ class ContainerContext {
     await new Promise((resolve, reject) => {
       this.#docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
     });
+    context.log('done');
   }
 
   public apply = async (executionContext: ExecutionContext) => {
-    await this.create(executionContext, false);
+    const context = executionContext.subContext('apply');
+    await this.create(context, false);
   }
 
+  public execCmd = (ExecutionContext: ExecutionContext, command: string[]) => new Promise<string>(async (resolve, reject) => {
+    const id = await this.getCurrentId();
+    if (!id) {
+      throw new Error('Container not running');
+    }
+    const container = this.#docker.getContainer(id);
+    const exec = await container.exec({
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: false,
+      Cmd: command,
+    })
+    const stream = await exec.start({
+      hijack: true,
+    });
+
+    let result = '';
+
+    stream.on('data', (data) => {
+      result += data.toString();
+    });
+
+    stream.on('end', () => {
+      resolve(result);
+    });
+
+    stream.on('error', (err) => {
+      reject(err);
+    })
+  })
+
+  public exec = (ExecutionContext: ExecutionContext, command: string[]) => new Promise<void>(async (resolve, reject) => {
+    const id = await this.getCurrentId();
+    if (!id) {
+      throw new Error('Container not running');
+    }
+    const container = this.#docker.getContainer(id);
+    const exec = await container.exec({
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: true,
+      Cmd: command,
+    })
+    exec.start({
+      hijack: true,
+      stdin: true,
+    }, (err, stream) => {
+      if (err || !stream) {
+        return reject(err || new Error('Stream could not be created'));
+      }
+      this.#docker.modem.demuxStream(stream, process.stdout, process.stderr);
+      process.stdin.pipe(stream);
+      stream.on('end', () => {
+        process.stdin.unpipe(stream);
+        resolve();
+      });
+    });
+
+  })
+
   public create = async (executionContext: ExecutionContext, recreate: boolean) => {
+    const context = executionContext.subContext('create');
     const { name, project, container, getApi } = this.#options;
     if (executionContext.hosts && !executionContext.hosts.includes(container.host)) {
       return;
     }
+    context.log('starting');
+    await this.pull(context);
     let imageName = await this.#getImageName();
     if (!imageName || executionContext.build) {
-      await this.build();
+      await this.build(context);
       imageName = await this.#getImageName();
     }
-    const networks = container.networks.reduce((output, current) => {
-      const network = this.#host.getNetwork(current);
-      output[network] = {
-        NetworkID: network,
+    const [mainNetworkId, ...networkIds] = container.networks;
+    const mainNetwork = mainNetworkId ? {
+      [this.#host.getNetwork(mainNetworkId)]: {
+        NetworkID: this.#host.getNetwork(mainNetworkId),
       }
-      return output;
-    }, {} as Dockerode.EndpointsConfig);
+    } : undefined;
     const volumes = await Promise.all(container.volumes?.map(async ([id, target]) => {
       await this.#host.ensureVolume(id);
       const mount: Dockerode.MountSettings = {
@@ -135,7 +216,7 @@ class ContainerContext {
     }];
     const environment = await Promise.all(Object.entries(container.environment || {}).map(async ([name, value]) => {
       if (typeof value !== 'string') {
-        const secretsApi = getApi('x:secrets:1.0.0');
+        const secretsApi = getApi('dockerverse:secrets:*');
         const text = await secretsApi[value.project].getSecretValue(value.id);
         return `${name}=${text}`
       } else {
@@ -162,7 +243,7 @@ class ContainerContext {
       },
       Cmd: container.cmd,
       NetworkingConfig: {
-        EndpointsConfig: networks,
+        EndpointsConfig: mainNetwork,
       },
       Env: environment,
       ExposedPorts: exposedPorts,
@@ -174,9 +255,16 @@ class ContainerContext {
         PortBindings: ports,
       }
     };
-    await this.destroy(executionContext);
+    await this.destroy(context);
     const dockerContainer = await this.#docker.createContainer(dockerContainerInfo);
     await dockerContainer.start();
+    for (let networkId of networkIds) {
+      const network = this.#docker.getNetwork(this.#host.getNetwork(networkId));
+      await network.connect({
+        Container: dockerContainer.id,
+      });
+    }
+    context.log('done');
   }
 }
 

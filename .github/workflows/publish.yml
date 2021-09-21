@@ -2,7 +2,6 @@ name: NPM publish CD workflow
 
 on:
   release:
-    # This specifies that the build will be triggered when we publish a release
     types: [published]
 
 jobs:
@@ -11,8 +10,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
-        # "ref" specifies the branch to check out.
-        # "github.event.release.target_commitish" is a global variable and specifies the branch the release targeted
         ref: ${{ github.event.release.target_commitish }}
     - name: Use Node.js 16
       uses: actions/setup-node@v2
@@ -22,27 +19,13 @@ jobs:
     - run: yarn install
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    # set up git since we will later push to the repo
     - run: git config --global user.name "GitHub CD bot"
     - run: git config --global user.email "github-cd-bot@example.com"
-    - name: Authenticate with Registry
-      run: |
-        yarn logout
-        echo "registry=http://registry.npmjs.org/" >> .npmrc
-        echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> .npmrc
-        npm whoami
-      env:
-        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    # build the project
-    - run: yarn run build
-    # publish to NPM -> there is one caveat, continue reading for the fix
     - run: yarn lerna publish -y --pre-dist-tag  ${{ github.event.release.target_commitish }} ${{ github.event.release.tag_name }} --no-verify-access
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    # push the version changes to GitHub
     - run: git push
       env:
-        # The secret is passed automatically. Nothing to configure.
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
 

@@ -1,4 +1,5 @@
 import proxy from './src/buildins/proxy';
+import gitea from './src/buildins/gitea';
 import secrets from './src/buildins/secrets';
 import path from 'path';
 import { Options } from './src/index';
@@ -18,6 +19,7 @@ const config: Options = {
   projects: {
     secrets: secrets(),
     proxy,
+    gitea: gitea({ host: 'main' }),
   },
 };
 

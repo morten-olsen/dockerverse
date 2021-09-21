@@ -7,7 +7,6 @@ interface Options {
   name: string;
   project: IProject;
   hosts: IHostContext,
-  magic: symbol,
   getApi: (projectName: string, provides: string) => {[name: string]: any};
 }
 
@@ -26,8 +25,12 @@ class ProjectContext {
     return this.#containerContexts;
   }
 
+  get project() {
+    return this.#options.project;
+  }
+
   #getContainerContexts = async () => {
-    const { getApi, project, magic, hosts, name } = this.#options;
+    const { getApi, project, hosts, name } = this.#options;
     if (!project.createContainers) {
       return {};
     }
@@ -39,7 +42,6 @@ class ProjectContext {
       [name]: new ContainerContext({
         name: containerName,
         container,
-        magic,
         hosts,
         project: name,
         getApi: (provides) => getApi(name, provides),
@@ -61,24 +63,39 @@ class ProjectContext {
     this.#containerContexts = await this.#getContainerContexts();
   }
 
-  public build = async () => {
+  public build = async (executionContext: ExecutionContext) => {
     const containers = this.containerContexts;
-    for (let [, container] of Object.entries(containers)) {
-      await container.build()
+    for (let [name, container] of Object.entries(containers)) {
+      const context = executionContext.subContext(name);
+      await container.build(context);
     }
   }
 
   public destroy = async (executionContext: ExecutionContext) => {
     const containers = this.containerContexts;
-    for (let [, container] of Object.entries(containers).reverse()) {
-      await container.destroy(executionContext)
+    for (let [name, container] of Object.entries(containers).reverse()) {
+      const context = executionContext.subContext(name);
+      await container.destroy(context);
+    }
+    for (let host of Object.values(this.#options.hosts)) {
+      const containers = await host.docker.listContainers();
+      const list = containers.filter(c => c.Labels?.project === this.#options.name);
+      for (let { Id } of list) {
+        const current = host.docker.getContainer(Id);
+        const info = await current.inspect();
+        if (info.State.Running) {
+          await current.stop();
+        }
+        await current.remove();
+      }
     }
   }
 
   public apply = async (executionContext: ExecutionContext) => {
     const containers = this.containerContexts;
-    for (let [, container] of Object.entries(containers)) {
-      await container.apply(executionContext);
+    for (let [name, container] of Object.entries(containers)) {
+      const context = executionContext.subContext(name);
+      await container.apply(context);
     }
   }
 

@@ -12,8 +12,8 @@ class Proxy extends Project {
         const loadbalancedContainer: IContainer = {
           ...container,
           networks: [
-            ...container.networks,
             this.#network,
+            ...container.networks,
           ],
           labels: {
             ...container.labels || {},
@@ -51,7 +51,6 @@ class Proxy extends Project {
       image: 'traefik:2.5',
       host: this.#host,
       networks: [
-        this.#network,
       ],
       cmd: [
         '--providers.docker=true',

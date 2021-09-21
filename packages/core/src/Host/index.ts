@@ -1,6 +1,7 @@
 import Docker from 'dockerode';
 import { nanoid } from 'nanoid';
 import path from 'path';
+import { hasImage, pullImage } from '../helpers/docker';
 
 interface Options {
   docker?: Docker.DockerOptions;
@@ -12,14 +13,12 @@ interface Options {
 
 class Host {
   #options: Options;
-  #magic: Symbol;
   #docker: Docker;
   #networks: {[id: symbol]: string} = {};
   #volumes: {[id: symbol]: string} = {};
 
-  constructor(options: Options, magic: Symbol) {
+  constructor(options: Options) {
     this.#options = options;
-    this.#magic = magic;
     this.#docker = new Docker(options.docker);
   }
 
@@ -27,10 +26,7 @@ class Host {
     return Object.keys(this.#options.storage);
   }
 
-  getDocker = (magic: Symbol) => {
-    if (magic !== this.#magic) {
-      throw new Error('Invalid docker magic');
-    }
+  get docker() {
     return this.#docker;
   }
 
@@ -48,7 +44,9 @@ class Host {
       throw new Error('Volume does not exists');
     }
     const target = path.join('/data', source);
-    // TODO: pull busybox
+    if (!await hasImage(this.#docker, 'busybox')) {
+      await pullImage(this.#docker, 'busybox');
+    }
     const options: Docker.ContainerCreateOptions = {
       Tty: false,
       HostConfig: {

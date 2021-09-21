@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import fs from 'fs-extra';
 import path from 'path';
 import inquirer from 'inquirer';
+import { Command } from 'commander';
 
 class Secrets extends Project {
   type = 'secrets';
@@ -30,6 +31,13 @@ class Secrets extends Project {
 
   #getSecretValue = async (id: symbol) => {
     return this.#secrets[id];
+  }
+
+  #removeSecret = async (project: string, name: string) => {
+    const file = path.join(this.#location, project, name);
+    if (fs.existsSync(file)) {
+      await fs.unlink(file);
+    }
   }
 
   #getSecret = async (project: string, name: string) => {
@@ -76,6 +84,14 @@ class Secrets extends Project {
       project: this.#name,
       id: secretSymbol,
     };
+  }
+
+  createCli = (program: Command) => {
+    const remove = program.command('remove [project] [name]');
+    remove.action(async (project: string, name: string) => {
+      await this.#removeSecret(project, name);
+    });
+    
   }
 }
 

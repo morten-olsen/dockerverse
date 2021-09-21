@@ -16,23 +16,20 @@ interface Options {
 
 class Context {
   #options: Options;
-  #magic: symbol;
   #hosts: IHostContext;
   #projectContexts: {[name: string]: ProjectContext}
 
   constructor(options: Options) {
     this.#options = options;
-    this.#magic = Symbol('Docker magic');
     this.#hosts = Object.entries(options.hosts).reduce<IHostContext>((output, [name, options]) => ({
       ...output,
-      [name]: new Host(options, this.#magic),
+      [name]: new Host(options),
     }), {});
     this.#projectContexts = Object.entries(options.projects).reduce((output, [name, project]) => {
       const projectContext = new ProjectContext({
         name,
         project,
         hosts: this.#hosts,
-        magic: this.#magic,
         getApi: this.#getApi,
       });
       return {
@@ -40,6 +37,10 @@ class Context {
         [name]: projectContext,
       }
     }, {} as {[name: string]: ProjectContext})
+  }
+
+  get projectContexts() {
+    return this.#projectContexts;
   }
 
   #getApi = (projectName: string, provides: string) => {
@@ -69,14 +70,16 @@ class Context {
   }
   
   public apply = async (executionContext: ExecutionContext) => {
-    for (let project of Object.values(this.#projectContexts)) {
-      await project.apply(executionContext);
+    for (let [name, project] of Object.entries(this.#projectContexts)) {
+      const context = executionContext.subContext(name);
+      await project.apply(context);
     }
   }
 
   public destroy = async (executionContext: ExecutionContext) => {
-    for (let project of Object.values(this.#projectContexts)) {
-      await project.destroy(executionContext);
+    for (let [name, project] of Object.entries(this.#projectContexts)) {
+      const context = executionContext.subContext(name);
+      await project.destroy(context);
     }
   }
 }
