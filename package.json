@@ -6,6 +6,9 @@
   "repository": "https://github.com/morten-olsen/dockerverse.git",
   "author": "Morten Olsen <morten+pgp@olsen.pro>",
   "license": "MIT",
+  "scripts": {
+    "postinstall": "lerna bootstrap"
+  },
   "workspaces": [
     "packages/*"
   ],
